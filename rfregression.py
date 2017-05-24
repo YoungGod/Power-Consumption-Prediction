@@ -37,17 +37,17 @@ s_day_type = pd.Series(data = day_type * num_weeks + rest_days, index = s_power_
 # scaling the power consumption
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import RobustScaler
-std_sca = StandardScaler().fit(s_power_consumption.values.reshape(-1,1))
-data_std = StandardScaler().fit_transform(s_power_consumption.values.reshape(-1,1)).flatten()
-rob_sca = RobustScaler().fit(s_power_consumption.values.reshape(-1,1))
-data_rob = RobustScaler().fit_transform(s_power_consumption.values.reshape(-1,1)).flatten()
+#std_sca = StandardScaler().fit(s_power_consumption.values.reshape(-1,1))
+#data_std = StandardScaler().fit_transform(s_power_consumption.values.reshape(-1,1)).flatten()
+#rob_sca = RobustScaler().fit(s_power_consumption.values.reshape(-1,1))
+#data_rob = RobustScaler().fit_transform(s_power_consumption.values.reshape(-1,1)).flatten()
 
 # creat samples
 # feature X, and target Y
 # the month sep has 30 days so, target y is an vector with 30 dimensions
 # here, we use the previous 30 days power and day types plus the next 30 day types to predict
 # the next 30 day power 
-window_size = 25
+window_size = 90
 prediction_period = 30
 seq_length = s_power_consumption.size
 
@@ -56,8 +56,8 @@ XY_day_type = []
 Y_power = []
 
 for i in xrange(0,seq_length-window_size):
-    xy_power = data_std[i:window_size+i]
-    x_power = xy_power[0:prediction_period]
+    xy_power = s_power_consumption.values[i:window_size+i]
+    x_power = xy_power[0:window_size-prediction_period]
     X_power.append(x_power)
     y_power = xy_power[-prediction_period:]
     Y_power.append(y_power)
@@ -69,10 +69,11 @@ for i in xrange(0,seq_length-window_size):
 X_power = np.array(X_power)
 XY_day_type = np.array(XY_day_type)
 X = np.concatenate((X_power,XY_day_type),axis = 1)
+#X = X_power
 
 # One hot coding
 from sklearn.preprocessing import OneHotEncoder
-enc = OneHotEncoder(categorical_features=np.arange(30,X.shape[1]))
+enc = OneHotEncoder(categorical_features=np.arange(window_size-prediction_period,X.shape[1]))
 X = enc.fit_transform(X)
 
 Y = np.array(Y_power)
@@ -82,24 +83,23 @@ X = X.toarray()
 X_train = X[:-1]; X_test = X[-1:]
 Y_train = Y[:-1]; Y_test = Y[-1:]
 
-from sklearn.neural_network import MLPRegressor
+from sklearn.ensemble import RandomForestRegressor
 
-reg = MLPRegressor(activation = 'logistic',hidden_layer_sizes = (100,30),
-                   max_iter=10000,verbose=True,learning_rate='adaptive',
-                   tol=0.0,warm_start=True)
+reg = RandomForestRegressor(verbose=True,max_features = 'auto',min_samples_split=2)
+
 reg.fit(X_train,Y_train)
 
-pred_y = reg.predict(X_test)
+pred = reg.predict(X_test)
+test = Y_test
 
-
-plt.plot(pred_y.flatten(),label='predict')
+plt.plot(pred.flatten(),label='predict')
 plt.plot(Y_test.flatten(),label='real')
 plt.legend()
 plt.show()
 
 
-pred = rob_sca.inverse_transform(pred_y.reshape(-1,1))
-test = rob_sca.inverse_transform(Y_test.reshape(-1,1))
+#pred = rob_sca.inverse_transform(pred_y.reshape(-1,1))
+#test = rob_sca.inverse_transform(Y_test.reshape(-1,1))
 
 re_err = abs(pred-test)/test
 
@@ -108,7 +108,7 @@ plt.plot(test.flatten(),label='real')
 plt.legend()
 plt.show()
 
-plt.plot(re_err,label='err')
+plt.plot(re_err.flatten(),label='err')
 plt.legend()
 plt.show()
 

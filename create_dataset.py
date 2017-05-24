@@ -47,7 +47,7 @@ data_rob = RobustScaler().fit_transform(s_power_consumption.values.reshape(-1,1)
 # the month sep has 30 days so, target y is an vector with 30 dimensions
 # here, we use the previous 30 days power and day types plus the next 30 day types to predict
 # the next 30 day power 
-window_size = 42
+window_size = 40
 prediction_period = 30
 seq_length = s_power_consumption.size
 
@@ -59,7 +59,7 @@ Y_power = []
 #fr_y = open('target.csv','w')
 for i in xrange(0,seq_length-window_size):
     xy_power = data_std[i:window_size+i]
-    x_power = xy_power[0:prediction_period]
+    x_power = xy_power[0:window_size-prediction_period]
     X_power.append(x_power)
     y_power = xy_power[-prediction_period:]
     Y_power.append(y_power)
@@ -88,8 +88,10 @@ X = np.concatenate((X_power,XY_day_type),axis = 1)
 
 # One hot coding
 from sklearn.preprocessing import OneHotEncoder
-enc = OneHotEncoder(categorical_features=np.arange(30,X.shape[1]))
+enc = OneHotEncoder(categorical_features=np.arange(window_size-prediction_period,X.shape[1]))
 X = enc.fit_transform(X)
+#new_sca = StandardScaler(with_mean=False)
+#X = .fit_transform(X)
 
 Y = np.array(Y_power)
 
@@ -100,9 +102,10 @@ Y_train = Y[:-1]; Y_test = Y[-1:]
 
 from sklearn.neural_network import MLPRegressor
 
-reg = MLPRegressor(activation = 'logistic',hidden_layer_sizes = (60,30),
+reg = MLPRegressor(activation = 'logistic',hidden_layer_sizes = (60,),
                    max_iter=10000,verbose=True,learning_rate='adaptive',
-                   tol=0.0,warm_start=True)
+                   tol=0.0,warm_start=True,solver='adam')
+
 reg.fit(X_train,Y_train)
 
 pred_y = reg.predict(X_test)
