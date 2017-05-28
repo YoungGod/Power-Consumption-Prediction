@@ -13,9 +13,10 @@ df = pd.read_csv('Tianchi_power.csv')
 # df['record_date'] = pd.to_datetime(df['record_date'])
 
 # total power consumption
-s_power_consumption = df.groupby('record_date')['power_consumption'].sum()
-s_power_consumption.index = pd.to_datetime(s_power_consumption.index).sort_values()
-
+#s_power_consumption = df.groupby('record_date')['power_consumption'].sum()
+#s_power_consumption.index = pd.to_datetime(s_power_consumption.index).sort_values()
+pivoted = df.pivot('record_date','user_id','power_consumption')
+s_power_consumption = pivoted[144]
 # create day types
 # 2015-1-1 is wendsday so ..
 #day_type = ['wen','thu','fri','sat','sun','mon','tue']
@@ -41,14 +42,18 @@ data_std = StandardScaler().fit_transform(s_power_consumption.values.reshape(-1,
 rob_sca = RobustScaler().fit(s_power_consumption.values.reshape(-1,1))
 data_rob = RobustScaler().fit_transform(s_power_consumption.values.reshape(-1,1)).flatten()
 
+data_rob = np.concatenate((data_rob[0:121],data_rob[180:]))
+s_day_type = pd.Series(data = s_day_type.values)
+s_day_type.drop(range(121,180))
+
 # creat samples
 # feature X, and target Y
 # the month sep has 30 days so, target y is an vector with 30 dimensions
 # here, we use the previous 30 days power and day types plus the next 30 day types to predict
 # the next 30 day power 
-window_size = 30
-prediction_period = 1
-seq_length = s_power_consumption.size
+window_size = 45
+prediction_period = 30
+seq_length = data_rob.size
 
 X_power = []
 XY_day_type = []
@@ -57,7 +62,7 @@ Y_power = []
 #fr_x = open('feature.csv','w')
 #fr_y = open('target.csv','w')
 for i in xrange(0,seq_length-window_size):
-    xy_power = data_std[i:window_size+i]
+    xy_power = data_rob[i:window_size+i]
     x_power = xy_power[0:window_size-prediction_period]
     X_power.append(x_power)
     y_power = xy_power[-prediction_period:]
@@ -94,12 +99,12 @@ Y = np.array(Y_power)
 
 # the last month for testing
 #X = X.toarray()
-X_train = X[:-30]; X_test = X[-30:]
-Y_train = Y[:-30]; Y_test = Y[-30:]
+X_train = X[:-1]; X_test = X[-1]
+Y_train = Y[:-1]; Y_test = Y[-1]
 
 from sklearn.neural_network import MLPRegressor
 
-reg = MLPRegressor(activation = 'logistic',hidden_layer_sizes = (45,),
+reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (60,),
                    max_iter=10000,verbose=True,learning_rate='adaptive',
                    tol=0.0,warm_start=True)
 reg.fit(X_train,Y_train)

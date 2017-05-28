@@ -14,13 +14,15 @@ df = pd.read_csv('Tianchi_power.csv')
 # df['record_date'] = pd.to_datetime(df['record_date'])
 
 # total power consumption
-s_power_consumption = df.groupby('record_date')['power_consumption'].sum()
+#s_power_consumption = df.groupby('record_date')['power_consumption'].sum()
+pivoted = df.pivot('record_date','user_id','power_consumption')
+s_power_consumption = pivoted[144]
 s_power_consumption.index = pd.to_datetime(s_power_consumption.index).sort_values()
 
 # create day types
 # 2015-1-1 is wendsday so ..
 #day_type = ['wen','thu','fri','sat','sun','mon','tue']
-day_type = [3,4,5,6,7,1,2]    # for sklearn
+day_type = [3,3,3,6,7,3,3]    # for sklearn
 rest_days = []
 if s_power_consumption.size % 7 == 0:
     num_weeks = s_power_consumption.size / 7
@@ -42,14 +44,19 @@ data_std = StandardScaler().fit_transform(s_power_consumption.values.reshape(-1,
 rob_sca = RobustScaler().fit(s_power_consumption.values.reshape(-1,1))
 data_rob = RobustScaler().fit_transform(s_power_consumption.values.reshape(-1,1)).flatten()
 
+# pre 
+data_rob = np.concatenate((data_rob[0:121],data_rob[180:]))
+s_day_type = pd.Series(data = s_day_type.values)
+s_day_type.drop(range(121,180))
 # creat samples
 # feature X, and target Y
 # the month sep has 30 days so, target y is an vector with 30 dimensions
 # here, we use the previous 30 days power and day types plus the next 30 day types to predict
 # the next 30 day power 
-window_size = 40
+window_size = 150
 prediction_period = 30
-seq_length = s_power_consumption.size
+#seq_length = s_power_consumption.size
+seq_length = data_rob.size
 
 X_power = []
 XY_day_type = []
@@ -58,7 +65,7 @@ Y_power = []
 #fr_x = open('feature.csv','w')
 #fr_y = open('target.csv','w')
 for i in xrange(0,seq_length-window_size):
-    xy_power = data_std[i:window_size+i]
+    xy_power = data_rob[i:window_size+i]
     x_power = xy_power[0:window_size-prediction_period]
     X_power.append(x_power)
     y_power = xy_power[-prediction_period:]
@@ -102,7 +109,7 @@ Y_train = Y[:-1]; Y_test = Y[-1:]
 
 from sklearn.neural_network import MLPRegressor
 
-reg = MLPRegressor(activation = 'logistic',hidden_layer_sizes = (60,),
+reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (300,),
                    max_iter=10000,verbose=True,learning_rate='adaptive',
                    tol=0.0,warm_start=True,solver='adam')
 
@@ -120,7 +127,7 @@ plt.show()
 pred = rob_sca.inverse_transform(pred_y.reshape(-1,1))
 test = rob_sca.inverse_transform(Y_test.reshape(-1,1))
 
-re_err = abs(pred-test)/test
+re_err = abs(pred-test)
 
 plt.plot(pred.flatten(),label='predict')
 plt.plot(test.flatten(),label='real')
@@ -131,18 +138,41 @@ plt.plot(re_err,label='err')
 plt.legend()
 plt.show()
 
-# final prediction the 9th month
+# 误差方差
+mean_fit_err = abs(reg.predict(X_train)-Y_train).sum().mean()
+mean_pre_err = re_err.mean()
 
-#reg = MLPRegressor(activation = 'logistic',hidden_layer_sizes = (100,30),
-#                   max_iter=10000,verbose=True,learning_rate='adaptive',
-#                   tol=0.0,warm_start=True)
-#reg.fit(X,Y)
-
-#new_x = 
-#pred_y = reg.predict(X)
-#
-#fr_result = open('Tianchi_power_predict_table.csv','w')
+print 'fit err:', mean_fit_err
+print 'pre err', mean_pre_err      
 
 
+# final prediction the 9th month 120,90,30
 
+# write to file
+day_type9 = [3,4,5,6,7,1,2]    # for sklearn
+rest_days = []
+num_weeks = 30 / 7
+if 30 % 7 != 0:
+    num_rest_days = 30 % 7
+    rest_days = day_type[0:num_rest_days]
+    
+s_day_type9 = pd.Series(data = day_type9 * num_weeks + rest_days)
 
+x9_power = data_rob[-(window_size-prediction_period):]
+x9_day_type = s_day_type.values[-(window_size-prediction_period):]
+x9 = np.concatenate((x9_power,x9_day_type,s_day_type9.values))
+
+x9 = enc.transform(x9)
+
+power9 = reg.predict(x9) 
+
+power9 = rob_sca.inverse_transform(power9.reshape(-1,1))
+
+fr = open('Tianchi_power_predict.csv','w')
+fr.write('record_date,power_consumption\n')
+for i,power in enumerate(power9):
+    if i+1 < 10:
+        fr.write('2016090%s,'%(i+1)+str(int(power))+'\n')
+    else:
+        fr.write('201609%s,'%(i+1)+str(int(power))+'\n')
+fr.close()

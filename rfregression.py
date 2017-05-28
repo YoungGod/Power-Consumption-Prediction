@@ -14,9 +14,10 @@ df = pd.read_csv('Tianchi_power.csv')
 # df['record_date'] = pd.to_datetime(df['record_date'])
 
 # total power consumption
-s_power_consumption = df.groupby('record_date')['power_consumption'].sum()
-s_power_consumption.index = pd.to_datetime(s_power_consumption.index).sort_values()
-
+#s_power_consumption = df.groupby('record_date')['power_consumption'].sum()
+#s_power_consumption.index = pd.to_datetime(s_power_consumption.index).sort_values()
+pivoted = df.pivot('record_date','user_id','power_consumption')
+s_power_consumption = pivoted[144]
 # create day types
 # 2015-1-1 is wendsday so ..
 #day_type = ['wen','thu','fri','sat','sun','mon','tue']
@@ -47,7 +48,7 @@ from sklearn.preprocessing import RobustScaler
 # the month sep has 30 days so, target y is an vector with 30 dimensions
 # here, we use the previous 30 days power and day types plus the next 30 day types to predict
 # the next 30 day power 
-window_size = 90
+window_size = 120
 prediction_period = 30
 seq_length = s_power_consumption.size
 
@@ -80,12 +81,13 @@ Y = np.array(Y_power)
 
 # the last month for testing
 X = X.toarray()
-X_train = X[:-1]; X_test = X[-1:]
-Y_train = Y[:-1]; Y_test = Y[-1:]
+X_train = X[:-30]; X_test = X[-30]
+Y_train = Y[:-30]; Y_test = Y[-30]
 
 from sklearn.ensemble import RandomForestRegressor
 
 reg = RandomForestRegressor(verbose=True,max_features = 'auto',min_samples_split=2)
+
 
 reg.fit(X_train,Y_train)
 
