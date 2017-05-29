@@ -11,9 +11,10 @@ import matplotlib.pyplot as plt
 
 # df for dataframe, s for series
 df = pd.read_csv('Tianchi_power.csv')
-# df['record_date'] = pd.to_datetime(df['record_date'])
+df['record_date'] = pd.to_datetime(df['record_date'])
 
 # total power consumption
+# 先要把record_date格式转换
 #s_power_consumption = df.groupby('record_date')['power_consumption'].sum()
 pivoted = df.pivot('record_date','user_id','power_consumption')
 s_power_consumption = pivoted[144]

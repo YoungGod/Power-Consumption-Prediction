@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 # df for dataframe, s for series
 df = pd.read_csv('Tianchi_power.csv')
-# df['record_date'] = pd.to_datetime(df['record_date'])
+df['record_date'] = pd.to_datetime(df['record_date'])
 
 # total power consumption
 s_power_consumption = df.groupby('record_date')['power_consumption'].sum()
@@ -95,10 +95,12 @@ plt.show()
 #acorr_ljungbox(s_values, lags=1)
 
 from statsmodels.tsa.arima_model import ARIMA
-model = ARIMA(s_values, (5,0,5)).fit()
-pred = model.forecast(50)[0]
+s = s_power_consumption.values[:]
+s = s.astype(np.float64)
+model = ARIMA(s, (6,1,2)).fit()
+pred = model.forecast(30)[0]
 plt.plot(pred,label='predict')
-plt.plot(s_values,label='real')
+plt.plot(s[-30:],label='real')
 plt.legend()
 plt.show()
 
@@ -112,6 +114,10 @@ plt.show()
 #    return result
 
 
-
+# 
+pivoted = df.pivot('record_date','user_id','power_consumption')
+user = pivoted.mean()
+index = user.index
+index1 = index[np.where(user.values==1)]
 
 
