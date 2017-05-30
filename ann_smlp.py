@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue May 23 05:32:41 2017
+Created on Tue May 30 12:05:05 2017
 
 @author: Young
 """
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.neural_network import MLPRegressor
 
 # df for dataframe, s for series
 df = pd.read_csv('Tianchi_power.csv')
@@ -23,7 +24,8 @@ s_power_consumption.index = pd.to_datetime(s_power_consumption.index).sort_value
 # create day types
 # 2015-1-1 is wendsday so ..
 #day_type = ['wen','thu','fri','sat','sun','mon','tue']
-day_type = [3,3,3,6,7,3,3]    # for sklearn
+day_type = [3,4,5,6,7,1,2]    # for sklearn
+day_type = [3,3,3,6,7,1,3]
 rest_days = []
 if s_power_consumption.size % 7 == 0:
     num_weeks = s_power_consumption.size / 7
@@ -45,18 +47,94 @@ data_std = StandardScaler().fit_transform(s_power_consumption.values.reshape(-1,
 rob_sca = RobustScaler().fit(s_power_consumption.values.reshape(-1,1))
 data_rob = RobustScaler().fit_transform(s_power_consumption.values.reshape(-1,1)).flatten()
 
-# pre 
-data_rob = np.concatenate((data_rob[0:121],data_rob[180:]))
-s_day_type = pd.Series(data = s_day_type.values)
-s_day_type.drop(range(121,180))
+## pre 
+#data_rob = np.concatenate((data_rob[0:121],data_rob[180:]))
+#s_day_type = pd.Series(data = s_day_type.values)
+#s_day_type.drop(range(121,180))
+
 # creat samples
 # feature X, and target Y
 # the month sep has 30 days so, target y is an vector with 30 dimensions
 # here, we use the previous 30 days power and day types plus the next 30 day types to predict
 # the next 30 day power 
-window_size = 120
+input_size = 90
+input_sizes = [30,45,60,75,90,105,120,135,150]
+random_states = range(0,4)
+hiddens = np.linspace(30,300,10).astype(np.int)
 prediction_period = 30
-input_size = window_size - prediction_period
+
+# score
+def score(pred,test):
+    pred = rob_sca.inverse_transform(pred.reshape(1,-1))
+    test = rob_sca.inverse_transform(test.reshape(1,-1))
+    err = abs(pred - test)/test
+    return err.sum()
+
+# chosing the best model
+models = []
+
+for input_size in input_sizes:
+  
+    window_size = input_size + prediction_period
+    
+    #seq_length = s_power_consumption.size
+    seq_length = data_rob.size
+    
+    X_power = []
+    XY_day_type = []
+    Y_power = []
+    
+    # 构建数据集
+    for i in xrange(0,seq_length-window_size):
+        xy_power = data_rob[i:window_size+i]
+        x_power = xy_power[0:window_size-prediction_period]
+        X_power.append(x_power)
+        y_power = xy_power[-prediction_period:]
+        Y_power.append(y_power)
+        
+        xy_day_type = s_day_type.values[i:window_size+i]
+        XY_day_type.append(xy_day_type)
+            
+    # training and test set
+    X_power = np.array(X_power)
+    XY_day_type = np.array(XY_day_type)
+    X = np.concatenate((X_power,XY_day_type),axis = 1)
+    
+    # One hot coding
+    enc = OneHotEncoder(categorical_features=np.arange(window_size-prediction_period,X.shape[1]))
+    X = enc.fit_transform(X)
+    
+    Y = np.array(Y_power)
+    
+    # the last month for testing
+    X = X.toarray()
+        
+    for hidden in hiddens:
+        s_score = 0
+        for state in random_states:
+            reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (hidden,),
+                               max_iter=10000,verbose=False,learning_rate='adaptive',
+                               tol=0.0,warm_start=True,solver='adam',random_state=state)
+            for i in xrange(0,30):
+                X_train = X[:-30+i]; X_test = X[-30+i]
+                Y_train = Y[:-30+i]; Y_test = Y[-30+i]          
+                reg.fit(X_train,Y_train)
+                pred_y = reg.predict(X_test.reshape(1,-1))
+                s_score += score(pred_y,Y_test)
+        models.append((s_score/len(random_states),input_size,hidden))
+
+# best model
+models.sort()
+best_score, input_size, hidden = models[0]
+
+#input_size = 150
+#hidden = 300
+
+reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (hidden,),
+                               max_iter=10000,verbose=True,learning_rate='adaptive',
+                               tol=0.0,warm_start=True,solver='adam')
+window_size = input_size + prediction_period
+
 #seq_length = s_power_consumption.size
 seq_length = data_rob.size
 
@@ -64,73 +142,43 @@ X_power = []
 XY_day_type = []
 Y_power = []
 
-#fr_x = open('feature.csv','w')
-#fr_y = open('target.csv','w')
+# 构建数据集
 for i in xrange(0,seq_length-window_size):
     xy_power = data_rob[i:window_size+i]
-    x_power = xy_power[0:window_size-prediction_period]
+    x_power = xy_power[0:input_size]
     X_power.append(x_power)
     y_power = xy_power[-prediction_period:]
     Y_power.append(y_power)
     
     xy_day_type = s_day_type.values[i:window_size+i]
     XY_day_type.append(xy_day_type)
-    
-#    for power in x_power:
-#        fr_x.write(str(power)+',')
-#    for i in xrange(0,window_size-1):
-#        fr_x.write(str(xy_day_type[i])+',')  # for sklearn
-#    fr_x.write(str(xy_day_type[i])+'\n')
-##        fr_x.write(xy_day_type[i]+',')
-##    fr_x.write(xy_day_type[-1]+'\n')
-#    
-#    for i in xrange(0,prediction_period-1):
-#        fr_y.write(str(y_power[i])+',')
-#    fr_y.write(str(y_power[-1])+'\n')
-#fr_x.close()
-#fr_y.close()   
-
+        
 # training and test set
 X_power = np.array(X_power)
 XY_day_type = np.array(XY_day_type)
 X = np.concatenate((X_power,XY_day_type),axis = 1)
 
 # One hot coding
-from sklearn.preprocessing import OneHotEncoder
 enc = OneHotEncoder(categorical_features=np.arange(window_size-prediction_period,X.shape[1]))
 X = enc.fit_transform(X)
-#new_sca = StandardScaler(with_mean=False)
-#X = .fit_transform(X)
 
 Y = np.array(Y_power)
 
 # the last month for testing
 X = X.toarray()
-X_train = X[:-30]; X_test = np.concatenate((X[-60].reshape(1,-1),X[-30].reshape(1,-1)))
-Y_train = Y[:-30]; Y_test = np.concatenate((Y[-60].reshape(1,-1),Y[-30].reshape(1,-1)))
-
-from sklearn.neural_network import MLPRegressor
-
-hidden = input_size+3*input_size+3*prediction_period
-reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (500,30),
-                   max_iter=10000,verbose=True,learning_rate='adaptive',
-                   tol=0.0,warm_start=True,solver='adam')
-
+X_train = X[:-15]; X_test = X[-15]
+Y_train = Y[:-15]; Y_test = Y[-15]
 reg.fit(X_train,Y_train)
-
 pred_y = reg.predict(X_test)
 
-
-plt.plot(pred_y.flatten(),label='predict')
-plt.plot(Y_test.flatten(),label='real')
-plt.legend()
-plt.show()
-
-
-pred = rob_sca.inverse_transform(pred_y.reshape(-1,1))
-test = rob_sca.inverse_transform(Y_test.reshape(-1,1))
-
-
+def test_plot(pred,test):
+    plt.plot(pred.flatten(),label='predict')
+    plt.plot(test.flatten(),label='real')
+    plt.legend()
+    plt.show()
+     
+pred = std_sca.inverse_transform(pred_y.reshape(-1,1))
+test = std_sca.inverse_transform(Y_test.reshape(-1,1))
 err = abs(pred-test)/test
 
 plt.plot(pred.flatten(),label='predict')
