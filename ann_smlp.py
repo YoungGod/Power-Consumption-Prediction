@@ -59,7 +59,8 @@ data_rob = RobustScaler().fit_transform(s_power_consumption.values.reshape(-1,1)
 # the next 30 day power 
 input_size = 90
 input_sizes = [30,45,60,75,90,105,120,135,150]
-random_states = range(0,4)
+input_sizes = [90,120,150]
+random_states = range(0,2)
 hiddens = np.linspace(30,300,10).astype(np.int)
 prediction_period = 30
 
@@ -70,65 +71,65 @@ def score(pred,test):
     err = abs(pred - test)/test
     return err.sum()
 
-# chosing the best model
-models = []
-
-for input_size in input_sizes:
-  
-    window_size = input_size + prediction_period
-    
-    #seq_length = s_power_consumption.size
-    seq_length = data_rob.size
-    
-    X_power = []
-    XY_day_type = []
-    Y_power = []
-    
-    # 构建数据集
-    for i in xrange(0,seq_length-window_size):
-        xy_power = data_rob[i:window_size+i]
-        x_power = xy_power[0:window_size-prediction_period]
-        X_power.append(x_power)
-        y_power = xy_power[-prediction_period:]
-        Y_power.append(y_power)
-        
-        xy_day_type = s_day_type.values[i:window_size+i]
-        XY_day_type.append(xy_day_type)
-            
-    # training and test set
-    X_power = np.array(X_power)
-    XY_day_type = np.array(XY_day_type)
-    X = np.concatenate((X_power,XY_day_type),axis = 1)
-    
-    # One hot coding
-    enc = OneHotEncoder(categorical_features=np.arange(window_size-prediction_period,X.shape[1]))
-    X = enc.fit_transform(X)
-    
-    Y = np.array(Y_power)
-    
-    # the last month for testing
-    X = X.toarray()
-        
-    for hidden in hiddens:
-        s_score = 0
-        for state in random_states:
-            reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (hidden,),
-                               max_iter=10000,verbose=False,learning_rate='adaptive',
-                               tol=0.0,warm_start=True,solver='adam',random_state=state)
-            for i in xrange(0,30):
-                X_train = X[:-30+i]; X_test = X[-30+i]
-                Y_train = Y[:-30+i]; Y_test = Y[-30+i]          
-                reg.fit(X_train,Y_train)
-                pred_y = reg.predict(X_test.reshape(1,-1))
-                s_score += score(pred_y,Y_test)
-        models.append((s_score/len(random_states),input_size,hidden))
+## chosing the best model
+#models = []
+#
+#for input_size in input_sizes:
+#  
+#    window_size = input_size + prediction_period
+#    
+#    #seq_length = s_power_consumption.size
+#    seq_length = data_rob.size
+#    
+#    X_power = []
+#    XY_day_type = []
+#    Y_power = []
+#    
+#    # 构建数据集
+#    for i in xrange(0,seq_length-window_size):
+#        xy_power = data_rob[i:window_size+i]
+#        x_power = xy_power[0:window_size-prediction_period]
+#        X_power.append(x_power)
+#        y_power = xy_power[-prediction_period:]
+#        Y_power.append(y_power)
+#        
+#        xy_day_type = s_day_type.values[i:window_size+i]
+#        XY_day_type.append(xy_day_type)
+#            
+#    # training and test set
+#    X_power = np.array(X_power)
+#    XY_day_type = np.array(XY_day_type)
+#    X = np.concatenate((X_power,XY_day_type),axis = 1)
+#    
+#    # One hot coding
+#    enc = OneHotEncoder(categorical_features=np.arange(window_size-prediction_period,X.shape[1]))
+#    X = enc.fit_transform(X)
+#    
+#    Y = np.array(Y_power)
+#    
+#    # the last month for testing
+#    X = X.toarray()
+#        
+#    for hidden in hiddens:
+#        s_score = 0
+#        for state in random_states:
+#            reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (hidden,),
+#                               max_iter=10000,verbose=False,learning_rate='adaptive',
+#                               tol=0.0,warm_start=True,solver='adam',random_state=state)
+#            for i in xrange(0,30):
+#                X_train = X[:-30+i]; X_test = X[-30+i]
+#                Y_train = Y[:-30+i]; Y_test = Y[-30+i]          
+#                reg.fit(X_train,Y_train)
+#                pred_y = reg.predict(X_test.reshape(1,-1))
+#                s_score += score(pred_y,Y_test)
+#        models.append((s_score/len(random_states),input_size,hidden))
 
 # best model
 models.sort()
 best_score, input_size, hidden = models[0]
 
-#input_size = 150
-#hidden = 300
+input_size = 150
+hidden = 300
 
 reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (hidden,),
                                max_iter=10000,verbose=True,learning_rate='adaptive',
@@ -199,35 +200,35 @@ print 'fit err:', mean_fit_err
 print 'pre err', mean_pre_err      
 
 
-## final prediction the 9th month 120,90,30
-#X_train = X
-#Y_train = Y
-#
-#from sklearn.neural_network import MLPRegressor
-#
-#reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (120,30),
-#                   max_iter=10000,verbose=True,learning_rate='adaptive',
-#                   tol=0.0,warm_start=True,solver='adam',random_state=0)
-#
-#reg.fit(X_train,Y_train)
-#
-## write to file
-#day_type9 = [3,3,3,6,7,3,3]    # for sklearn
-#rest_days = []
-#num_weeks = 30 / 7
-#if 30 % 7 != 0:
-#    num_rest_days = 30 % 7
-#    rest_days = day_type[0:num_rest_days]
-#    
-#s_day_type9 = pd.Series(data = day_type9 * num_weeks + rest_days)
-#
-#x9_power = data_rob[-(window_size-prediction_period):]
-#x9_day_type = s_day_type.values[-(window_size-prediction_period):]
-#x9 = np.concatenate((x9_power,x9_day_type,s_day_type9.values))
-#
-#x9 = enc.transform(x9)
-#
-#power9 = reg.predict(x9) 
+# final prediction the 9th month 120,90,30
+X_train = X
+Y_train = Y
+
+from sklearn.neural_network import MLPRegressor
+
+reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (300,),
+                   max_iter=10000,verbose=True,learning_rate='adaptive',
+                   tol=0.0,warm_start=True,solver='adam',random_state=0)
+
+reg.fit(X_train,Y_train)
+
+# write to file
+day_type9 = [3,3,3,6,7,3,3]    # for sklearn
+rest_days = []
+num_weeks = 30 / 7
+if 30 % 7 != 0:
+    num_rest_days = 30 % 7
+    rest_days = day_type[0:num_rest_days]
+    
+s_day_type9 = pd.Series(data = day_type9 * num_weeks + rest_days)
+
+x9_power = data_rob[-(window_size-prediction_period):]
+x9_day_type = s_day_type.values[-(window_size-prediction_period):]
+x9 = np.concatenate((x9_power,x9_day_type,s_day_type9.values))
+
+x9 = enc.transform(x9)
+
+power9 = reg.predict(x9) 
 #
 #power9 = rob_sca.inverse_transform(power9.reshape(-1,1))
 #

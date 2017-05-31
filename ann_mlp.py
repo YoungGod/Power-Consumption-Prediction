@@ -26,6 +26,7 @@ s_power_consumption.index = pd.to_datetime(s_power_consumption.index).sort_value
 #day_type = ['wen','thu','fri','sat','sun','mon','tue']
 day_type = [3,4,5,6,7,1,2]    # for sklearn
 day_type = [3,3,3,6,7,1,3]
+day_type = [3,3,3,6,7,3,3]
 rest_days = []
 if s_power_consumption.size % 7 == 0:
     num_weeks = s_power_consumption.size / 7
@@ -59,8 +60,10 @@ data_rob = RobustScaler().fit_transform(s_power_consumption.values.reshape(-1,1)
 # the next 30 day power 
 input_size = 90
 input_sizes = [30,45,60,75,90,105,120,135,150]
-random_states = range(0,4)
-hiddens = np.linspace(30,300,10).astype(np.int)
+input_sizes = [90,120,150]
+random_states = range(0,2)
+hiddens = np.linspace(90,300,10).astype(np.int)
+hiddens = [90,120,150,180,300]
 prediction_period = 30
 
 # score
@@ -72,7 +75,7 @@ def score(pred,test):
 
 ## chosing the best model
 #models = []
-
+#
 #for input_size in input_sizes:
 #  
 #    window_size = input_size + prediction_period
@@ -108,8 +111,8 @@ def score(pred,test):
 #    
 #    # the last month for testing
 #    X = X.toarray()
-#    X_train = X[:-30]; X_test = X[-30:]
-#    Y_train = Y[:-30]; Y_test = Y[-30:]
+##    X_train = X[:-30]; X_test = X[-30:]
+##    Y_train = Y[:-30]; Y_test = Y[-30:]
 #        
 #    for hidden in hiddens:
 #        s_score = 0
@@ -117,16 +120,22 @@ def score(pred,test):
 #            reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (hidden,30),
 #                               max_iter=10000,verbose=False,learning_rate='adaptive',
 #                               tol=0.0,warm_start=True,solver='adam',random_state=state)
-#            reg.fit(X_train,Y_train)
-#            pred_y = reg.predict(X_test)
-#            s_score += score(pred_y,Y_test)
+#            for i in xrange(0,5):
+#                X_train = X[:-30+i]; X_test = X[-30+i]
+#                Y_train = Y[:-30+i]; Y_test = Y[-30+i]          
+#                reg.fit(X_train,Y_train)
+#                pred_y = reg.predict(X_test.reshape(1,-1))
+#                s_score += score(pred_y,Y_test)
+##            reg.fit(X_train,Y_train)
+##            pred_y = reg.predict(X_test)
+##            s_score += score(pred_y,Y_test)
 #        models.append((s_score/len(random_states),input_size,hidden))
 #
 ## best model
 #models.sort()
 #best_score, input_size, hidden = models[0]
 
-input_size = 150
+input_size = 120
 hidden = 300
 
 reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (hidden,30),
@@ -165,8 +174,8 @@ Y = np.array(Y_power)
 
 # the last month for testing
 X = X.toarray()
-X_train = X[:-15]; X_test = X[-15]
-Y_train = Y[:-15]; Y_test = Y[-15]
+X_train = X[:-1]; X_test = X[-1]
+Y_train = Y[:-1]; Y_test = Y[-1]
 reg.fit(X_train,Y_train)
 pred_y = reg.predict(X_test)
 
@@ -198,45 +207,44 @@ print 'fit err:', mean_fit_err
 print 'pre err', mean_pre_err      
 
 
-## final prediction the 9th month 120,90,30
-#X_train = X
-#Y_train = Y
-#
-#from sklearn.neural_network import MLPRegressor
-#
-#reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (120,30),
-#                   max_iter=10000,verbose=True,learning_rate='adaptive',
-#                   tol=0.0,warm_start=True,solver='adam',random_state=0)
-#
-#reg.fit(X_train,Y_train)
-#
-## write to file
-#day_type9 = [3,3,3,6,7,3,3]    # for sklearn
-#rest_days = []
-#num_weeks = 30 / 7
-#if 30 % 7 != 0:
-#    num_rest_days = 30 % 7
-#    rest_days = day_type[0:num_rest_days]
-#    
-#s_day_type9 = pd.Series(data = day_type9 * num_weeks + rest_days)
-#
-#x9_power = data_rob[-(window_size-prediction_period):]
-#x9_day_type = s_day_type.values[-(window_size-prediction_period):]
-#x9 = np.concatenate((x9_power,x9_day_type,s_day_type9.values))
-#
-#x9 = enc.transform(x9)
-#
-#power9 = reg.predict(x9) 
-#
-#power9 = rob_sca.inverse_transform(power9.reshape(-1,1))
-#
-#fr = open('Tianchi_power_predict.csv','w')
-#fr.write('record_date,power_consumption\n')
-#for i,power in enumerate(power9):
-#    if i+1 < 10:
-#        fr.write('2016090%s,'%(i+1)+str(int(power))+'\n')
-#    else:
-#        fr.write('201609%s,'%(i+1)+str(int(power))+'\n')
-#fr.close()
-#
-#plt.plot(power9)
+# final prediction the 9th month 120,90,30
+X_train = X
+Y_train = Y
+
+day_type9 = [3,3,3,6,7,3,3]    # for sklearn
+rest_days = []
+num_weeks = 30 / 7
+if 30 % 7 != 0:
+    num_rest_days = 30 % 7
+    rest_days = day_type[0:num_rest_days]
+    
+s_day_type9 = pd.Series(data = day_type9 * num_weeks + rest_days)
+
+x9_power = data_rob[-(window_size-prediction_period):]
+x9_day_type = s_day_type.values[-(window_size-prediction_period):]
+x9 = np.concatenate((x9_power,x9_day_type,s_day_type9.values))
+x9 = enc.transform(x9)
+power9 = 0
+for state in range(0,30):
+
+    reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (hidden,30),
+                       max_iter=10000,verbose=False,learning_rate='adaptive',
+                       tol=0.0,warm_start=True,solver='adam',random_state=state)
+
+    reg.fit(X_train,Y_train)     
+    power9 += reg.predict(x9)
+    
+
+power9 = rob_sca.inverse_transform(power9.reshape(-1,1)/30)
+
+# write to file
+fr = open('Tianchi_power_predict_table.csv','w')
+fr.write('record_date,power_consumption\n')
+for i,power in enumerate(power9):
+    if i+1 < 10:
+        fr.write('2016090%s,'%(i+1)+str(int(power))+'\n')
+    else:
+        fr.write('201609%s,'%(i+1)+str(int(power))+'\n')
+fr.close()
+
+plt.plot(power9)
