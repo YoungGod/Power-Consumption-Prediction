@@ -66,7 +66,7 @@ Y_power = []
 
 #fr_x = open('feature.csv','w')
 #fr_y = open('target.csv','w')
-for i in xrange(0,seq_length-window_size):
+for i in xrange(0,seq_length-window_size+1):
     xy_power = data_rob[i:window_size+i]
     x_power = xy_power[0:window_size-prediction_period]
     X_power.append(x_power)
@@ -112,7 +112,7 @@ Y_train = Y[:-30]; Y_test = np.concatenate((Y[-60].reshape(1,-1),Y[-30].reshape(
 from sklearn.neural_network import MLPRegressor
 
 hidden = input_size+3*input_size+3*prediction_period
-reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (500,30),
+reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (600,30),
                    max_iter=10000,verbose=True,learning_rate='adaptive',
                    tol=0.0,warm_start=True,solver='adam')
 

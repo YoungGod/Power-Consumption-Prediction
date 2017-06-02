@@ -48,4 +48,42 @@ for day_type in day_types:
     s = pd.concat((s_power_consumption,s_day_type),axis=1)
     mean.append(s.groupby(0)['power_consumption'].mean())
     std.append(s.groupby(0)['power_consumption'].std())
+
+# season analysis
+day_type = [3,4,5,6,7,1,2]
+#day_type = [3,3,3,6,7,1,3]
+#day_type = [3,3,3,6,7,3,3]
+rest_days = []
+if s_power_consumption.size % 7 == 0:
+    num_weeks = s_power_consumption.size / 7
+else:
+    num_rest_days = s_power_consumption.size % 7
+    rest_days = day_type[0:num_rest_days]
     
+s_day_type = pd.Series(data = day_type * num_weeks + rest_days, index = s_power_consumption.index)
+
+s = pd.Series(data=s_power_consumption.values,index=s_day_type.values)
+
+data = []
+for day in sorted(day_type):
+    data.append(s.values[np.where(s.index==day)])
+
+fig, ax = plt.subplots(figsize=(18,12))
+ax.boxplot(data)
+ax.set_title('box plot')
+ax.set_xticks([y+1 for y in range(len(data))])
+ax.set_xticklabels(['Mon','Tue','Wed','Thu','Fri','Sat','Sun'])
+
+fig, ax = plt.subplots(figsize=(18,12))
+ax.violinplot(data,showmedians=True,showmeans=False)
+ax.set_title('box plot')
+ax.set_xticks([y+1 for y in range(len(data))])
+ax.set_xticklabels(['Mon','Tue','Wed','Thu','Fri','Sat','Sun'])
+
+fig, ax = plt.subplots(figsize=(24,6))
+ax.plot(s_power_consumption.values,'-o')
+ax.set_title('power consumption')
+ax.set_xticks([y for y in range(len(s_power_consumption.values))])
+ax.xaxis.grid(True)
+#ax.set_xticklabels(s_power_consumption.index[-90:],rotation='vertical')
+#ax.set_xticklabels(s_day_type.values,rotation='vertical')

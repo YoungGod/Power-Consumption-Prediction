@@ -8,7 +8,7 @@ Created on Mon May 29 08:09:45 2017
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.linear_model import LinearRegression 
+#from sklearn.linear_model import LinearRegression 
 from numpy.linalg import pinv
 
 # df for dataframe, s for series
@@ -72,7 +72,7 @@ def corr_fit_plot(s, k):
 #corr_fit_plot(s_power_consumption.values,3)
 #corr_fit_plot(s_power_consumption.values,5)
 #corr_fit_plot(s_power_consumption.values,7)
-#corr_fit_plot(s_power_consumption.values,9)
+corr_fit_plot(s_power_consumption.values,60)
 
 # 观测时间序列某t时刻的概率分布形状（假设平稳条件下） 密度估计？？
 plt.hist(s_power_consumption.values,bins=50)
@@ -111,45 +111,45 @@ def partial_corrs(x, lag=10):
         coefs.append(partial_corr(x, i))
     return coefs
 
-partial_coefs = partial_corrs(s_power_consumption.values, lag=10)
+partial_coefs = partial_corrs(s_power_consumption.values, lag=200)
 plt.stem(partial_coefs)
 plt.title('Partial Auto Correlation')
 plt.show()
 
-# 测试偏自相关函数
-def seq2_regression(first=0,second=1,length=50):
-    auto = [0]*length;
-    auto[0]=first;auto[1]=second
-    for i in xrange(2,length):
-        auto[i] = 0.6*auto[i-1] + 0.2*auto[i-2] + np.random.randn()
-    return auto
-
-x = seq2_regression(length = 200)
-
-corr = auto_corr(pd.Series(data=x),range(1,60))
-plt.stem(corr)
-plt.title('Auto Correlation')
-plt.show()
-
-partial_coefs = partial_corrs(x, lag=30)
-plt.stem(partial_coefs)
-plt.title('Partial Auto Correlation')
-plt.show()
-
-# 一阶差分后序列的自相关，偏自相关
-s1 = pd.Series(data = s_power_consumption.values[0:-1])
-s2 = pd.Series(data = s_power_consumption.values[1:])
-delta_power = s2-s1
-
-corr = auto_corr(delta_power,range(1,60))
-plt.stem(corr)
-plt.title('Auto Correlation')
-plt.show()
-
-partial_coefs = partial_corrs(delta_power.values, lag=30)
-plt.stem(partial_coefs)
-plt.title('Partial Auto Correlation')
-plt.show()
+## 测试偏自相关函数
+#def seq2_regression(first=0,second=1,length=50):
+#    auto = [0]*length;
+#    auto[0]=first;auto[1]=second
+#    for i in xrange(2,length):
+#        auto[i] = 0.6*auto[i-1] + 0.2*auto[i-2] + np.random.randn()
+#    return auto
+#
+#x = seq2_regression(length = 200)
+#
+#corr = auto_corr(pd.Series(data=x),range(1,60))
+#plt.stem(corr)
+#plt.title('Auto Correlation')
+#plt.show()
+#
+#partial_coefs = partial_corrs(x, lag=30)
+#plt.stem(partial_coefs)
+#plt.title('Partial Auto Correlation')
+#plt.show()
+#
+## 一阶差分后序列的自相关，偏自相关
+#s1 = pd.Series(data = s_power_consumption.values[0:-1])
+#s2 = pd.Series(data = s_power_consumption.values[1:])
+#delta_power = s2-s1
+#
+#corr = auto_corr(delta_power,range(1,60))
+#plt.stem(corr)
+#plt.title('Auto Correlation')
+#plt.show()
+#
+#partial_coefs = partial_corrs(delta_power.values, lag=30)
+#plt.stem(partial_coefs)
+#plt.title('Partial Auto Correlation')
+#plt.show()
 
 
 
