@@ -151,5 +151,23 @@ plt.show()
 #plt.title('Partial Auto Correlation')
 #plt.show()
 
+from statsmodels.tsa.seasonal import seasonal_decompose
+decomposition = seasonal_decompose(s_power_consumption.values,freq=7)
 
-
+trend = decomposition.trend
+seasonal = decomposition.seasonal
+residual = decomposition.resid
+plt.rc("figure", figsize=(25, 10))
+plt.subplot(411)
+plt.plot(s_power_consumption.values, label='Original')
+plt.legend(loc='best')
+plt.subplot(412)
+plt.plot(trend, label='Trend')
+plt.legend(loc='best')
+plt.subplot(413)
+plt.plot(seasonal,label='Seasonality')
+plt.legend(loc='best')
+plt.subplot(414)
+plt.plot(residual, label='Residuals')
+plt.legend(loc='best')
+plt.tight_layout()

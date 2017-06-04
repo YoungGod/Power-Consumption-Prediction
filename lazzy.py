@@ -45,9 +45,9 @@ def abs_distance(x_q, X):
 
 def err_evaluation(y_pred,y,err = 'abs'):
     if err == 'square':
-        return sum((y_pred-y)**2)
+        return ((y_pred-y)**2).mean()
     else:
-        return sum(abs(y_pred-y))
+        return (abs(y_pred-y)).mean()
 
 def lazzy_loo(x_q, X, y, Kmax = 50, dis = elu_distance):
     """
@@ -106,9 +106,9 @@ def lazzy_prediction(x, X, Y, models, method = 'WIN', dis = elu_distance):
     if method == 'WM':
         y_pred = 0.0
         total_err = 0.0
-        models.sort(reverse = True)
-        err_sorted = [err for err, k in models]
         models.sort()
+        err_sorted = sorted([err for err, k in models],reverse = True)
+        print err_sorted
         i = 0
         for err,num_neighbors in models:
             y_pred += err_sorted[i] * Y[neighbors_idx[0:num_neighbors]].mean(axis =0)
@@ -140,110 +140,162 @@ def create_dataset(seq, input_lags, pre_period):
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import RobustScaler
-#def choose_best_model(seq, lags = range(1,20), Kmax = 20, pre_period):
-#    """
-#    选择最佳lazzy model,及输入时滞
-#    """   
-#    # 标准化
-#    std_sca = StandardScaler().fit(np.array(seq).reshape(-1,1))
-##    rob_sca = RobustScaler().fit(np.array(seq).reshape(-1,1))
-#    seq = std_sca.transform(np.array(seq).reshape(-1,1))
-#    
-#    # 根据时滞及序列创建数据集,并进行交叉验证
-#    for input_lag in lags:
-#        window = input_lag + pre_period
-#        X, Y = create_dataset(seq.flatten(), input_lag = input_lags, pre_period = pre_period)
-#        models = lazzy_loo(X[-1], X[0:-1], Y[:-1], Kmax)
-#        x = seq[-window:-window+input_lags]
-#        x = std_sca.transform(np.array(x).reshape(-1,1)).flatten()
-#        
+def choose_best_lag(seq, pre_period, lags = range(1,30), Kmax = 200):
+    """
+    选择最佳lazzy model,及输入时滞
+    """
+    models = []
+    # 标准化
+    std_sca = StandardScaler().fit(np.array(seq).reshape(-1,1))
+#    rob_sca = RobustScaler().fit(np.array(seq).reshape(-1,1))
+    seq = std_sca.transform(np.array(seq).reshape(-1,1))
     
+    # 根据时滞及序列创建数据集,并进行交叉验证
+    for input_lag in lags:
+#        window = input_lag + pre_period
+        X, Y = create_dataset(seq.flatten(), input_lag, pre_period)
+        lazzy_models = lazzy_loo(X[-1], X[0:-1], Y[:-1], Kmax)
+        y_pred = lazzy_prediction(X[-1], X[0:-1], Y[:-1], lazzy_models)
+        err = err_evaluation(y_pred, Y[-1])
+        lazzy_models.sort()
+        models.append((err, input_lag, lazzy_models[0][1] ))
+    models.sort()
+    best_lag = models[0][1]
+    best_k = models[0][2]
+    return models, best_lag, best_k      
 
 if __name__ == '__main__':
     
-#    # test elu_distance()
-#    a = np.array([1,2,3])
-#    b = np.array([[4,5,6],[1,2,3]])
-#    print elu_distance(a,b)
-    
-#    # 测试lazzy模型
-#    def seq2_reg(first=0,second=1,length=1000):
-#        """
-#        产生二阶自相关时间序列，用于测试lazzy模型
-#        """
-#        auto = [0]*length;
-#        auto[0]=first;auto[1]=second
-#        for i in xrange(2,length):
-##            auto[i] = 0.6*auto[i-1] + 0.2*auto[i-2] + np.random.randn()
-#            auto[i] = 0.6*auto[i-1] + 0.2*auto[i-2] + 0.5*np.random.randn()
-#        return auto
-    
-    # 构建训练数据集    
-    input_lags = 30
-    pre_period = 30
-    window = input_lags + pre_period
+##    # test elu_distance()
+##    a = np.array([1,2,3])
+##    b = np.array([[4,5,6],[1,2,3]])
+##    print elu_distance(a,b)
+#    
+##    # 测试lazzy模型
+##    def seq2_reg(first=0,second=1,length=1000):
+##        """
+##        产生二阶自相关时间序列，用于测试lazzy模型
+##        """
+##        auto = [0]*length;
+##        auto[0]=first;auto[1]=second
+##        for i in xrange(2,length):
+###            auto[i] = 0.6*auto[i-1] + 0.2*auto[i-2] + np.random.randn()
+##            auto[i] = 0.6*auto[i-1] + 0.2*auto[i-2] + 0.5*np.random.randn()
+##        return auto
+#    
+#    # 构建训练数据集
+#    
+#    pre_period = 30
+#
+##    seq = seq2_reg()
+##    np.array(seq).dump('seq2order')
+#    seq = np.load('seq2order')
+#    seq_test = seq[-pre_period:]
+#    seq_train_cv = seq[:-pre_period]
+#    
+#    lag_models, best_lag, best_k = choose_best_lag(seq_train_cv, pre_period, lags = range(1,50), Kmax = 200)
+#    input_lags = best_lag
+#    window = input_lags + pre_period
+#    
+#    from sklearn.preprocessing import StandardScaler
+#    from sklearn.preprocessing import RobustScaler
+#    std_sca = StandardScaler().fit(np.array(seq_train_cv).reshape(-1,1))
+#    rob_sca = RobustScaler().fit(np.array(seq_train_cv).reshape(-1,1))
+#
+#    seq_train_cv = std_sca.transform(np.array(seq_train_cv).reshape(-1,1)) 
+#
+##    # testing the function: create_dataset()
+##    a = np.array([1,2,3,4,5,6,7])
+##    X, Y = create_dataset(a,2,2)
+##    print X,Y
+#
+#    X, Y = create_dataset(seq_train_cv.flatten(), input_lags, pre_period)
+#    
+#    # test lazzy_loo(..)
+#    x_q = X[-1]
+#    models = lazzy_loo(x_q, X[:-1], Y[:-1], Kmax = 100)
+# 
+##    # testing prediction
+##    models.sort()
+##    x = seq[-window:-window+input_lags]
+##    x = std_sca.transform(np.array(x).reshape(-1,1)).flatten()
+#    
+##    distance = elu_distance(x, X)
+##    neighbors = distance.argsort()
+##    k_near_neighbors = neighbors[0:models[0][1]]
+##    y_pred = Y[k_near_neighbors].mean(axis = 0)
+##    
+##    y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))
+##    
+##    fig, ax = plt.subplots()
+##    ax.plot(seq[-pre_period:],label='real')
+##    ax.plot(y_pred,label='lazzy - %s neighbors'% models[0][1])
+##    
+##    k_near_neighbors = neighbors[0:10]
+##    y_pred = Y[k_near_neighbors].mean(axis = 0)
+##    
+##    y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))
+##
+##    ax.plot(y_pred,label='%s neighbors'% len(k_near_neighbors))
+#    
+#    
+#    # testing lazzy_prediction()
+#    # 新的样本输入
+#    x = seq[-window:-window+input_lags]
+#    x = std_sca.transform(np.array(x).reshape(-1,1)).flatten()
+##    y_pred = lazzy_prediction(x, X, Y, models=models, method = 'WIN')
+##    y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))
+#    
+#    # drawing
+#    fig, ax = plt.subplots()
+#    ax.plot(seq_test,label='real')
+##    ax.plot(y_pred,label='WIN - %s neighbors'%models[0][1])
+#    # 真正预测时充分利用cv的数据，重新训练
+#    models = lazzy_loo(x, X, Y, Kmax = 200)
+#    methods = ['WIN','M','WM']
+#    for method in methods:
+#        y_pred = lazzy_prediction(x, X, Y, models=models, method = method)
+#        y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))
+#        if method == 'WIN':
+#            ax.plot(y_pred,label='%s - %s neighbors'%(method,models[0][1]))
+#        else:
+#            ax.plot(y_pred,label='%s - %s models'%(method,len(models)))
+#    ax.legend()
 
-#    seq = seq2_reg()
-#    np.array(seq).dump('seq2order')
-    seq = np.load('seq2order')
+
+# df for dataframe, s for series
+
+    df = pd.read_csv('Tianchi_power.csv')
+    df['record_date'] = pd.to_datetime(df['record_date'])
+
+# total power consumption
+# 先要把record_date格式转换
+    s_power_consumption = df.groupby('record_date')['power_consumption'].sum()
+    seq = s_power_consumption.values
+    
+    pre_period = 30
     seq_test = seq[-pre_period:]
     seq_train_cv = seq[:-pre_period]
     
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.preprocessing import RobustScaler
+    lag_models, best_lag, best_k = choose_best_lag(seq_train_cv, pre_period, lags = range(1,120), Kmax = 200)
+    input_lags = best_lag
+    window = input_lags + pre_period
+
     std_sca = StandardScaler().fit(np.array(seq_train_cv).reshape(-1,1))
-    rob_sca = RobustScaler().fit(np.array(seq_train_cv).reshape(-1,1))
-
-    seq_train_cv = std_sca.transform(np.array(seq_train_cv).reshape(-1,1)) 
-
-#    # testing the function: create_dataset()
-#    a = np.array([1,2,3,4,5,6,7])
-#    X, Y = create_dataset(a,2,2)
-#    print X,Y
-
-    X, Y = create_dataset(seq_train_cv.flatten(), input_lags, pre_period)
+    seq_train_cv = std_sca.transform(np.array(seq_train_cv).reshape(-1,1))
     
-    # test lazzy_loo(..)
-    x_q = X[-1]
-    models = lazzy_loo(x_q, X[:-1], Y[:-1], Kmax = 50)
- 
-#    # testing prediction
-#    models.sort()
-#    x = seq[-window:-window+input_lags]
-#    x = std_sca.transform(np.array(x).reshape(-1,1)).flatten()
-    
-#    distance = elu_distance(x, X)
-#    neighbors = distance.argsort()
-#    k_near_neighbors = neighbors[0:models[0][1]]
-#    y_pred = Y[k_near_neighbors].mean(axis = 0)
-#    
-#    y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))
-#    
-#    fig, ax = plt.subplots()
-#    ax.plot(seq[-pre_period:],label='real')
-#    ax.plot(y_pred,label='lazzy - %s neighbors'% models[0][1])
-#    
-#    k_near_neighbors = neighbors[0:10]
-#    y_pred = Y[k_near_neighbors].mean(axis = 0)
-#    
-#    y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))
-#
-#    ax.plot(y_pred,label='%s neighbors'% len(k_near_neighbors))
-    
+    X, Y = create_dataset(seq_train_cv.flatten(), input_lags, pre_period)       
     
     # testing lazzy_prediction()
     # 新的样本输入
     x = seq[-window:-window+input_lags]
     x = std_sca.transform(np.array(x).reshape(-1,1)).flatten()
-#    y_pred = lazzy_prediction(x, X, Y, models=models, method = 'WIN')
-#    y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))
     
     # drawing
     fig, ax = plt.subplots()
     ax.plot(seq_test,label='real')
-#    ax.plot(y_pred,label='WIN - %s neighbors'%models[0][1])
     # 真正预测时充分利用cv的数据，重新训练
-    models = lazzy_loo(x, X, Y, Kmax = 50)
+    models = lazzy_loo(x, X, Y, Kmax = 200)
     methods = ['WIN','M','WM']
     for method in methods:
         y_pred = lazzy_prediction(x, X, Y, models=models, method = method)
@@ -253,8 +305,6 @@ if __name__ == '__main__':
         else:
             ax.plot(y_pred,label='%s - %s models'%(method,len(models)))
     ax.legend()
-
-
 
 
 
