@@ -152,11 +152,13 @@ plt.show()
 #plt.show()
 
 from statsmodels.tsa.seasonal import seasonal_decompose
-decomposition = seasonal_decompose(s_power_consumption.values,freq=7)
+decomposition = seasonal_decompose(s_power_consumption.values,freq=14)
 
 trend = decomposition.trend
 seasonal = decomposition.seasonal
 residual = decomposition.resid
+
+
 plt.rc("figure", figsize=(25, 10))
 plt.subplot(411)
 plt.plot(s_power_consumption.values, label='Original')
@@ -171,3 +173,38 @@ plt.subplot(414)
 plt.plot(residual, label='Residuals')
 plt.legend(loc='best')
 plt.tight_layout()
+plt.show()
+
+partial_coefs = partial_corrs(residual[7:-8], lag=200)
+plt.stem(partial_coefs)
+plt.title('Partial Auto Correlation')
+plt.show()
+
+def corr(s, k):
+    """
+    求时间序列相关系数lag=k；
+    可视化
+    """
+    n = len(s)
+    x = []; y = []
+    for i in range(0,n-k):
+        x.append([s[i]])
+        y.append([s[i+k]])
+    
+    # least square by myself
+    x = np.array(x)
+    y = np.array(y)
+    one = np.ones((x.shape[0],1))
+    x = np.concatenate((one,np.array(x)),axis=1)
+    coefs = np.dot(pinv(x),y)
+    coef = coefs[1]
+
+    return coef
+
+def auto_corr(s, lags):
+    return np.array([corr(s, k) for k in lags])
+
+corr = auto_corr(residual[7:-8],range(1,200))
+plt.stem(corr)
+plt.title('Auto Correlation')
+plt.show()

@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 df = pd.read_csv('Tianchi_power_predict_table_mean.csv')
 
-power9 = df['power_consumption'].values
+power9 = df['ann_lazzy'].values
 
 # write to file
 fr = open('Tianchi_power_predict_table.csv','w')

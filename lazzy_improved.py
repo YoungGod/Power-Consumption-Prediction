@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Sat Jun 03 13:53:45 2017
+Created on Mon Jun 05 11:21:02 2017
 
 @author: Young
 """
@@ -140,7 +140,6 @@ def create_dataset(seq, input_lags, pre_period):
     return np.array(X), np.array(Y)
 
 from sklearn.preprocessing import StandardScaler
-from sklearn.preprocessing import RobustScaler
 def choose_best_lag(seq, pre_period, lags = range(1,30), Kmax = 200):
     """
     选择最佳lazzy model,及输入时滞
@@ -156,15 +155,15 @@ def choose_best_lag(seq, pre_period, lags = range(1,30), Kmax = 200):
     from sklearn.model_selection import train_test_split
     for input_lag in lags:
 #        window = input_lag + pre_period
-        X, Y = create_dataset(seq.flatten(), input_lag, pre_period)
+#        X, Y = create_dataset(seq.flatten(), input_lag, pre_period)
 #        lazzy_models = lazzy_loo(X[-1], X[0:-1], Y[:-1], Kmax)
 #        y_pred = lazzy_prediction(X[-1], X[0:-1], Y[:-1], lazzy_models)
 #        err = err_evaluation(y_pred.flatten(), Y[-1])
 #
 #        lazzy_models.sort()
 #        models.append((err, input_lag, lazzy_models[0][1]))
-        # do more cv
-#        for state in range(0,3):
+        
+#         do more cv
         err = 0.0
         X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.01, random_state=0)
         for x_q,y_q in zip(X_test,y_test):
@@ -180,7 +179,15 @@ def choose_best_lag(seq, pre_period, lags = range(1,30), Kmax = 200):
 #    ax.plot(y_pred.flatten(),label='prediction')
 #    ax.plot(Y[-1],label='real')
 #    ax.set_title('best cv lags')
-    return models, best_lag, best_k      
+    return models, best_lag, best_k
+
+def seq_restore(x0, seq):
+    n = len(seq)
+    y_pred = np.zeros(n)
+    y_pred[0] = x0 + seq[0]
+    for i in xrange(1,n):
+        y_pred[i] = seq[i] + y_pred[i-1]
+    return y_pred    
 
 if __name__ == '__main__':
     
@@ -193,10 +200,14 @@ if __name__ == '__main__':
 # 先要把record_date格式转换
     s_power_consumption = df.groupby('record_date')['power_consumption'].sum()
 #    seq = s_power_consumption.values
-    power = s_power_consumption.values
+#    power1 = s_power_consumption.values[:-1]
+#    power2 = s_power_consumption.values[1:]
+#    
+#    power = power2 - power1
+    power = np.log(s_power_consumption.values)
     
     from statsmodels.tsa.seasonal import seasonal_decompose    
-    decomposition = seasonal_decompose(s_power_consumption.values,freq=7)
+    decomposition = seasonal_decompose(power,freq=7)
     
     trend = decomposition.trend
     seasonal = decomposition.seasonal
@@ -212,228 +223,235 @@ if __name__ == '__main__':
     seq_test = seq[-pre_period:]
     seq_train_cv = seq[:-pre_period]
     
-#    lag_models, best_trend_lag, best_k = choose_best_lag(seq_train_cv, pre_period,
-#                                                         lags = range(1,120), Kmax = 200)
-#    input_lags = best_trend_lag
-    input_lags = 30
+    lag_models, best_trend_lag, best_k = choose_best_lag(seq_train_cv, pre_period,
+                                                         lags = range(1,120), Kmax = 200)
+    input_lags = best_trend_lag
+#    input_lags = 30
     window = input_lags + pre_period
-
+#
     std_sca = StandardScaler().fit(np.array(seq).reshape(-1,1))   # fit all seq
     seq_train_cv = std_sca.transform(np.array(seq_train_cv).reshape(-1,1))
     
-#    X, Y = create_dataset(seq_train_cv.flatten(), input_lags, pre_period)       
-#    
-#    # testing lazzy_prediction()
-#    # 新的样本输入
-#    x = seq[-window:-window+input_lags]
+    X, Y = create_dataset(seq_train_cv.flatten(), input_lags, pre_period)       
+    
+    # testing lazzy_prediction()
+    # 新的样本输入
+    x = seq[-window:-window+input_lags]
 ##    print 'x1',x
-#    x = std_sca.transform(np.array(x).reshape(-1,1)).flatten()
+    x = std_sca.transform(np.array(x).reshape(-1,1)).flatten()
 ##    print 'x2',x
 #    
-#    # drawing
+    # drawing
+    fig, ax = plt.subplots()
+    ax.plot(seq_test,label='real')
+    # 真正预测时充分利用cv的数据，重新训练
+    models = lazzy_loo(x, X, Y, Kmax = 200)  # 对于趋势Kmax可以作为一个参数调节
+#    print 'x3',x
+    methods = ['WIN','M','WM']
+#    methods = ['WM','M','WIN']
+    for method in methods:
+        y_pred = lazzy_prediction(x, X, Y, models=models, method = method)
+        y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))
+        if method == 'WIN':
+            err = (abs(y_pred-seq_test)/seq_test).mean()
+            ax.plot(y_pred,label='%s - %s neighbors with err %.2f%%'%(method,models[0][1],100*err))
+        else:
+            err = (abs(y_pred-seq_test)/seq_test).mean()
+            ax.plot(y_pred,label='%s - %s models with err %.2f%%'%(method,len(models),100*err))
+    ax.legend()
+    ax.set_title('trend')
+    
+    y_trend = y_pred
+
+#    from sklearn.ensemble import RandomForestRegressor
+#    X, Y = create_dataset(seq_train_cv.flatten(), input_lags, pre_period)     
+#    reg = RandomForestRegressor(verbose=True,max_features = 'auto',min_samples_split=2)
+#    reg.fit(X,Y)
+#    # 新的样本输入
+#    x = seq[-window:-window+input_lags]
+#    x = std_sca.transform(np.array(x).reshape(-1,1)).flatten()
+#    y_pred = reg.predict(x)
+#    y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))    
 #    fig, ax = plt.subplots()
 #    ax.plot(seq_test,label='real')
-#    # 真正预测时充分利用cv的数据，重新训练
-#    models = lazzy_loo(x, X, Y, Kmax = 200)  # 对于趋势Kmax可以作为一个参数调节
-##    print 'x3',x
-#    methods = ['WIN','M','WM']
-##    methods = ['WM','M','WIN']
-#    for method in methods:
-#        y_pred = lazzy_prediction(x, X, Y, models=models, method = method)
-#        y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))
-#        if method == 'WIN':
-#            err = (abs(y_pred-seq_test)/seq_test).mean()
-#            ax.plot(y_pred,label='%s - %s neighbors with err %.2f%%'%(method,models[0][1],100*err))
-#        else:
-#            err = (abs(y_pred-seq_test)/seq_test).mean()
-#            ax.plot(y_pred,label='%s - %s models with err %.2f%%'%(method,len(models),100*err))
+#    ax.plot(y_pred,label='pridition')
 #    ax.legend()
-#    ax.set_title('trend')
+#    ax.set_title('DT')
 #    
-#    y_trend = y_pred
+#    err = 100*(abs(y_pred.flatten()-seq_test)/seq_test).mean()
+#    print 'trend testing err: %.2f%%'% err
+#    
+#    from sklearn.neural_network import MLPRegressor
+#    
+#    reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (10,),
+#                       max_iter=10000,verbose=False,learning_rate='adaptive',
+#                       tol=0.0,warm_start=True,solver='adam')
+#    
+#    reg.fit(X,Y)
+#    y_pred = reg.predict(x)
+#    y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))    
+#    fig, ax = plt.subplots()
+#    ax.plot(seq_test,label='real')
+#    ax.plot(y_pred,label='pridition')
+#    ax.legend()
+#    ax.set_title('ANN')
+    
+    err = 100*(abs(y_pred.flatten()-seq_test)/seq_test).mean()
+    print 'trend testing err: %.2f%%'% err
+    
+    # for residual
+    seq = residual
+    
+    pre_period = 30
+    seq_test = seq[-pre_period:]
+    seq_train_cv = seq[:-pre_period]
+    
+    lag_models, best_resi_lag, best_k = choose_best_lag(seq_train_cv, pre_period, lags = range(1,120), Kmax = 200)
+    input_lags = best_resi_lag
+#    input_lags = 86
+    window = input_lags + pre_period
 
-    from sklearn.ensemble import RandomForestRegressor
-    X, Y = create_dataset(seq_train_cv.flatten(), input_lags, pre_period)     
-    reg = RandomForestRegressor(verbose=True,max_features = 'auto',min_samples_split=2)
-    reg.fit(X,Y)
+    std_sca = StandardScaler().fit(np.array(seq_train_cv).reshape(-1,1))
+    seq_train_cv = std_sca.transform(np.array(seq_train_cv).reshape(-1,1))
+    
+    X, Y = create_dataset(seq_train_cv.flatten(), input_lags, pre_period)       
+    
+    # testing lazzy_prediction()
     # 新的样本输入
     x = seq[-window:-window+input_lags]
     x = std_sca.transform(np.array(x).reshape(-1,1)).flatten()
-    y_pred = reg.predict(x)
-    y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))    
+    
+    # drawing
     fig, ax = plt.subplots()
     ax.plot(seq_test,label='real')
-    ax.plot(y_pred,label='pridition')
+    # 真正预测时充分利用cv的数据，重新训练
+    models = lazzy_loo(x, X, Y, Kmax = 100)
+    
+    methods = ['WIN','WM','M']
+    methods = ['M','WM','WIN']
+    for method in methods:
+        y_pred = lazzy_prediction(x, X, Y, models=models, method = method)
+        y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))
+        if method == 'WIN':
+            err = (abs(y_pred-seq_test)).mean()
+            ax.plot(y_pred,label='%s - %s neighbors with err %.2f'%(method,models[0][1],err))
+        else:
+            err = (abs(y_pred-seq_test)).mean()
+            ax.plot(y_pred,label='%s - %s models with err %.2f'%(method,len(models),err))
     ax.legend()
-    ax.set_title('DT')
+    ax.set_title('residual')
     
-    err = 100*(abs(y_pred.flatten()-seq_test)/seq_test).mean()
-    print 'trend testing err: %.2f%%'% err
+    y_resi = y_pred
     
-    from sklearn.neural_network import MLPRegressor
+    err = (abs(y_pred-seq_test)).mean()
+    print 'residual testing err: %.2f'% err
     
-    reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (10,),
-                       max_iter=10000,verbose=False,learning_rate='adaptive',
-                       tol=0.0,warm_start=True,solver='adam')
-    
-    reg.fit(X,Y)
-    y_pred = reg.predict(x)
-    y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))    
+    # restore the predictions
+    y_pred = y_resi + y_trend + seasonal[-pre_period:].reshape(-1,1)
+    # drawing
     fig, ax = plt.subplots()
-    ax.plot(seq_test,label='real')
-    ax.plot(y_pred,label='pridition')
+    ax.plot(power[-pre_period:],label='real')
+    ax.plot(y_pred,label='prediction')
     ax.legend()
-    ax.set_title('ANN')
     
-    err = 100*(abs(y_pred.flatten()-seq_test)/seq_test).mean()
-    print 'trend testing err: %.2f%%'% err
+    err = (abs(y_pred-power[-pre_period:])/power[-pre_period:]).mean()
+    print 'testing err: %s'% err
+    print 'WM + M'
     
-#    # for residual
-#    seq = residual
-#    
-#    pre_period = 30
-#    seq_test = seq[-pre_period:]
-#    seq_train_cv = seq[:-pre_period]
-#    
-#    lag_models, best_resi_lag, best_k = choose_best_lag(seq_train_cv, pre_period, lags = range(1,120), Kmax = 200)
-#    input_lags = best_resi_lag
-##    input_lags = 86
-#    window = input_lags + pre_period
-#
-#    std_sca = StandardScaler().fit(np.array(seq_train_cv).reshape(-1,1))
-#    seq_train_cv = std_sca.transform(np.array(seq_train_cv).reshape(-1,1))
-#    
-#    X, Y = create_dataset(seq_train_cv.flatten(), input_lags, pre_period)       
-#    
-#    # testing lazzy_prediction()
-#    # 新的样本输入
-#    x = seq[-window:-window+input_lags]
-#    x = std_sca.transform(np.array(x).reshape(-1,1)).flatten()
-#    
+#    y = seq_restore(power2[-30],y_pred.flatten())
 #    # drawing
 #    fig, ax = plt.subplots()
-#    ax.plot(seq_test,label='real')
-#    # 真正预测时充分利用cv的数据，重新训练
-#    models = lazzy_loo(x, X, Y, Kmax = 100)
-#    
-#    methods = ['WIN','WM','M']
-#    methods = ['M','WM','WIN']
-#    for method in methods:
-#        y_pred = lazzy_prediction(x, X, Y, models=models, method = method)
-#        y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))
-#        if method == 'WIN':
-#            err = (abs(y_pred-seq_test)).mean()
-#            ax.plot(y_pred,label='%s - %s neighbors with err %.2f'%(method,models[0][1],err))
-#        else:
-#            err = (abs(y_pred-seq_test)).mean()
-#            ax.plot(y_pred,label='%s - %s models with err %.2f'%(method,len(models),err))
-#    ax.legend()
-#    ax.set_title('residual')
-#    
-#    y_resi = y_pred
-#    
-#    err = (abs(y_pred-seq_test)).mean()
-#    print 'residual testing err: %.2f'% err
-#    
-#    # restore the predictions
-#    y_pred = y_resi + y_trend + seasonal[-pre_period:].reshape(-1,1)
-#    # drawing
-#    fig, ax = plt.subplots()
-#    ax.plot(power[-pre_period:],label='real')
+#    ax.plot(power2[-pre_period+1:],label='real')
 #    ax.plot(y_pred,label='prediction')
 #    ax.legend()
-#    
-#    err = (abs(y_pred-power[-pre_period:])/power[-pre_period:]).mean()
-#    print 'testing err: %s'% err
-#    print 'WM + M'
+
+    """
+    ======================================================
+    Prediction
+    ======================================================
+    """
+    # for trend
+    seq = trend
     
+    pre_period = 30
     
-#    """
-#    ======================================================
-#    Prediction
-#    ======================================================
-#    """
-#    # for trend
-#    seq = trend
-#    
-#    pre_period = 30
-#    
-##    input_lags = best_trend_lag
+    input_lags = best_trend_lag
 #    input_lags = 3
-#    window = input_lags + pre_period
-#
-#    std_sca = StandardScaler().fit(np.array(seq).reshape(-1,1))
-#    seq = std_sca.transform(np.array(seq).reshape(-1,1))
-#    
-#    X, Y = create_dataset(seq.flatten(), input_lags, pre_period)       
-#    
-#    # testing lazzy_prediction()
-#    # 新的样本输入
-#    x = seq[-window:-window+input_lags]  # or X[-1]
-#    x = std_sca.transform(np.array(x).reshape(-1,1)).flatten()
-#    
-#    # drawing
-#    fig, ax = plt.subplots()
-##    ax.plot(seq_test,label='real')
-#    # 真正预测时充分利用cv的数据，重新训练
-#    models = lazzy_loo(x, X, Y, Kmax = 200)
-#    methods = ['WIN','M','WM']
-#    for method in methods:
-#        y_pred = lazzy_prediction(x, X, Y, models=models, method = method)
-#        y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))
-#        if method == 'WIN':
-#            ax.plot(y_pred,label='%s - %s neighbors'%(method,models[0][1]))
-#        else:
-#            ax.plot(y_pred,label='%s - %s models'%(method,len(models)))
-#    ax.legend()
-#    ax.set_title('Trend Prediction')
-#    
-#    y_trend = y_pred
-#    
-#    # for residual
-#    seq = residual
-#    
-##    input_lags = best_resi_lag
-#    input_lags = 86
-#    window = input_lags + pre_period
-#
-#    std_sca = StandardScaler().fit(np.array(seq).reshape(-1,1))
-#    seq = std_sca.transform(np.array(seq).reshape(-1,1))
-#    
-#    X, Y = create_dataset(seq.flatten(), input_lags, pre_period)       
-#    
-#    # testing lazzy_prediction()
-#    # 新的样本输入
-#    x = seq[-window:-window+input_lags] # or X[-1]
-#    x = std_sca.transform(np.array(x).reshape(-1,1)).flatten()
-#    
-#    # drawing
-#    fig, ax = plt.subplots()
-##    ax.plot(seq_test,label='real')
-#    # 真正预测时充分利用cv的数据，重新训练
-#    models = lazzy_loo(x, X, Y, Kmax = 200)
+    window = input_lags + pre_period
+
+    std_sca = StandardScaler().fit(np.array(seq).reshape(-1,1))
+    seq = std_sca.transform(np.array(seq).reshape(-1,1))
+    
+    X, Y = create_dataset(seq.flatten(), input_lags, pre_period)       
+    
+    # testing lazzy_prediction()
+    # 新的样本输入
+    x = seq[-window:-window+input_lags]  # or X[-1]
+    x = std_sca.transform(np.array(x).reshape(-1,1)).flatten()
+    
+    # drawing
+    fig, ax = plt.subplots()
+#    ax.plot(seq_test,label='real')
+    # 真正预测时充分利用cv的数据，重新训练
+    models = lazzy_loo(x, X, Y, Kmax = 200)
+    methods = ['WIN','M','WM']
 #    methods = ['M','WM','WIN']
-#    for method in methods:
-#        y_pred = lazzy_prediction(x, X, Y, models=models, method = method)
-#        y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))
-#        if method == 'WIN':
-#            ax.plot(y_pred,label='%s - %s neighbors'%(method,models[0][1]))
-#        else:
-#            ax.plot(y_pred,label='%s - %s models'%(method,len(models)))
-#    ax.legend()
-#    ax.set_title('Residual Prediction')
-#    
-#    y_resi = y_pred
-#    
-#    # restoring, final prediction
-#    y_pred = y_resi + y_trend + seasonal[0:30].reshape(-1,1)
-#     # drawing
-#    fig, ax = plt.subplots()
-#    ax.plot(y_pred,label='prediction')
-#    ax.legend()
-#    ax.set_title('Final Prediction')
-#    
-###    power9 = y_pred
+    for method in methods:
+        y_pred = lazzy_prediction(x, X, Y, models=models, method = method)
+        y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))
+        if method == 'WIN':
+            ax.plot(y_pred,label='%s - %s neighbors'%(method,models[0][1]))
+        else:
+            ax.plot(y_pred,label='%s - %s models'%(method,len(models)))
+    ax.legend()
+    ax.set_title('Trend Prediction')
+    
+    y_trend = y_pred
+    
+    # for residual
+    seq = residual
+    
+    input_lags = best_resi_lag
+#    input_lags = 86
+    window = input_lags + pre_period
+
+    std_sca = StandardScaler().fit(np.array(seq).reshape(-1,1))
+    seq = std_sca.transform(np.array(seq).reshape(-1,1))
+    
+    X, Y = create_dataset(seq.flatten(), input_lags, pre_period)       
+    
+    # testing lazzy_prediction()
+    # 新的样本输入
+    x = seq[-window:-window+input_lags] # or X[-1]
+    x = std_sca.transform(np.array(x).reshape(-1,1)).flatten()
+    
+    # drawing
+    fig, ax = plt.subplots()
+#    ax.plot(seq_test,label='real')
+    # 真正预测时充分利用cv的数据，重新训练
+    models = lazzy_loo(x, X, Y, Kmax = 200)
+    methods = ['M','WM','WIN']
+    for method in methods:
+        y_pred = lazzy_prediction(x, X, Y, models=models, method = method)
+        y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))
+        if method == 'WIN':
+            ax.plot(y_pred,label='%s - %s neighbors'%(method,models[0][1]))
+        else:
+            ax.plot(y_pred,label='%s - %s models'%(method,len(models)))
+    ax.legend()
+    ax.set_title('Residual Prediction')
+    
+    y_resi = y_pred
+    
+    # restoring, final prediction
+    y_pred = y_resi + y_trend + seasonal[0:30].reshape(-1,1)
+     # drawing
+    fig, ax = plt.subplots()
+    ax.plot(y_pred,label='prediction')
+    ax.legend()
+    ax.set_title('Final Prediction')
+    
+##    power9 = y_pred
 ###
 ###    # write to file
 ###    fr = open('Tianchi_power_predict_table.csv','w')
