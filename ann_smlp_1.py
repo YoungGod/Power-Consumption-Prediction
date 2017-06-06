@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue May 30 12:05:05 2017
+Created on Tue Jun 06 07:59:43 2017
 
 @author: Young
 """
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -72,12 +73,9 @@ df['record_date'] = pd.to_datetime(df['record_date'])
 s_power_consumption = df.groupby('record_date')['power_consumption'].sum()
 power = s_power_consumption.values
 
-#power = np.log(power)
-# create day types
-# 2015-1-1 is wendsday so ..
-#day_type = ['wen','thu','fri','sat','sun','mon','tue']
-day_type = [3,4,5,6,7,1,2]    # for sklearn
-day_type = [3,3,3,6,7,1,3]
+
+# for example, exclude the anomonly days
+day_type = [3,4,5,6,7,1,2]
 rest_days = []
 if s_power_consumption.size % 7 == 0:
     num_weeks = s_power_consumption.size / 7
@@ -87,38 +85,41 @@ else:
     
 s_day_type = pd.Series(data = day_type * num_weeks + rest_days, index = s_power_consumption.index)
 
-# now, we need do some exploration and analysis of the collected data
-# for example, exclude the anomonly days
+s = pd.Series(data=s_power_consumption.values,index=s_day_type.values)
 
+day_type = [3,4,5,6,7,1,2]
+data = []
+for day in day_type:
+    data.append(s.values[np.where(s.index==day)])
+    
+data = np.array(data)
+df = pd.DataFrame(data = data.T,columns=['Wed','Thu','Fri','Sat','Sun','Mon','Tue',])
+s_median = df.median()
 
+median = s_median.values
+power = s_power_consumption.values
+median_expand = np.tile(median,87)
+deseason_power = power - median_expand
+power = deseason_power
 # scaling the power consumption
 from sklearn.preprocessing import StandardScaler
-#from sklearn.preprocessing import RobustScaler
+from sklearn.preprocessing import RobustScaler
 #std_sca = StandardScaler().fit(power.reshape(-1,1))
 #seq = StandardScaler().fit_transform(power.reshape(-1,1))
 #rob_sca = RobustScaler().fit(s_power_consumption.values.reshape(-1,1))
 #data_rob = RobustScaler().fit_transform(s_power_consumption.values.reshape(-1,1)).flatten()
 
 # decomposition
-from statsmodels.tsa.seasonal import seasonal_decompose    
-decomposition = seasonal_decompose(power,freq=7)
 
-trend = decomposition.trend
-seasonal = decomposition.seasonal
-residual = decomposition.resid
-
-trend = np.concatenate((np.tile(trend[3],3),trend[3:-3],np.tile(trend[-4],3))) # 首尾需要合理填充
-residual = power - trend - seasonal
-
-trend_residual = power - seasonal
 # for trend
-input_lags = 30
+input_lags = 70
 pre_period = 30
 
-seq = trend_residual
-std_sca = StandardScaler().fit(power.reshape(-1,1))
-seq = std_sca.transform(np.array(seq).reshape(-1,1))
-
+seq = power
+#std_sca = StandardScaler().fit(power.reshape(-1,1))
+#seq = std_sca.transform(np.array(seq).reshape(-1,1))
+rob_sca = RobustScaler().fit(power.reshape(-1,1))
+seq = rob_sca.transform(np.array(seq).reshape(-1,1))
 #models, input_lags = choose_best_lag(seq, pre_period, lags = range(20,100))
 hidden = (input_lags + pre_period + 3)/2
 window_size = input_lags + pre_period
@@ -132,8 +133,8 @@ reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (hidden,),
 
 
 
-X_train = X[:-1]; X_test = X[-1]
-Y_train = Y[:-1]; Y_test = Y[-1]
+X_train = X[:-1]; X_test = X[40]
+Y_train = Y[:-1]; Y_test = Y[40]
 
 reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (hidden,),
                                max_iter=10000,verbose=True,learning_rate='adaptive',
@@ -147,8 +148,8 @@ def test_plot(pred,test):
     plt.legend()
     plt.show()
      
-pred = std_sca.inverse_transform(pred_y.reshape(-1,1))
-test = std_sca.inverse_transform(Y_test.reshape(-1,1))
+pred = rob_sca.inverse_transform(pred_y.reshape(-1,1))
+test = rob_sca.inverse_transform(Y_test.reshape(-1,1))
 
 # drawing
 test_plot(pred,test)
@@ -173,17 +174,22 @@ Final prediction
 # final prediction
 X_train = X
 Y_train = Y
-reg.fit(X_train,Y_train)
- 
 # new input
 window = input_lags + pre_period
 x = seq[-window:-window+input_lags]
-x = std_sca.transform(np.array(x).reshape(-1,1)).flatten()
+x = rob_sca.transform(np.array(x).reshape(-1,1)).flatten()
+pred = 0
+states = range(0,30)
+for state in states:
+    reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (hidden,),
+                                   max_iter=10000,verbose=False,learning_rate='adaptive',
+                                   tol=0.0,warm_start=True,solver='adam',random_state=state)
+    reg.fit(X_train,Y_train)
+    pred += reg.predict(x)
+pred = pred/len(states)
 
-pred = reg.predict(x)
-pred = std_sca.inverse_transform(pred.reshape(-1,1))
-
-pred = pred.flatten() + seasonal[-30:]
+pred = rob_sca.inverse_transform(pred.reshape(-1,1))
+pred = pred.flatten() + median_expand[0:pre_period]
 
 plt.plot(pred.flatten(),label='predict')
 plt.legend()

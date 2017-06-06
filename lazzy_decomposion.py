@@ -204,86 +204,56 @@ if __name__ == '__main__':
 #    print 'Ok'
     trend = np.concatenate((np.tile(trend[3],3),trend[3:-3],np.tile(trend[-4],3))) # 首尾需要合理填充
     residual = power - trend - seasonal
+    trend_residual = power - seasonal
 
     # for trend
-    seq = trend
+    seq = trend_residual
     
     pre_period = 30
     seq_test = seq[-pre_period:]
     seq_train_cv = seq[:-pre_period]
     
-#    lag_models, best_trend_lag, best_k = choose_best_lag(seq_train_cv, pre_period,
-#                                                         lags = range(1,120), Kmax = 200)
-#    input_lags = best_trend_lag
-    input_lags = 30
+    lag_models, best_trend_lag, best_k = choose_best_lag(seq_train_cv, pre_period,
+                                                         lags = range(1,120), Kmax = 200)
+    input_lags = best_trend_lag
+#    input_lags = 30
     window = input_lags + pre_period
 
     std_sca = StandardScaler().fit(np.array(seq).reshape(-1,1))   # fit all seq
     seq_train_cv = std_sca.transform(np.array(seq_train_cv).reshape(-1,1))
     
-#    X, Y = create_dataset(seq_train_cv.flatten(), input_lags, pre_period)       
-#    
-#    # testing lazzy_prediction()
-#    # 新的样本输入
-#    x = seq[-window:-window+input_lags]
-##    print 'x1',x
-#    x = std_sca.transform(np.array(x).reshape(-1,1)).flatten()
-##    print 'x2',x
-#    
-#    # drawing
-#    fig, ax = plt.subplots()
-#    ax.plot(seq_test,label='real')
-#    # 真正预测时充分利用cv的数据，重新训练
-#    models = lazzy_loo(x, X, Y, Kmax = 200)  # 对于趋势Kmax可以作为一个参数调节
-##    print 'x3',x
-#    methods = ['WIN','M','WM']
-##    methods = ['WM','M','WIN']
-#    for method in methods:
-#        y_pred = lazzy_prediction(x, X, Y, models=models, method = method)
-#        y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))
-#        if method == 'WIN':
-#            err = (abs(y_pred-seq_test)/seq_test).mean()
-#            ax.plot(y_pred,label='%s - %s neighbors with err %.2f%%'%(method,models[0][1],100*err))
-#        else:
-#            err = (abs(y_pred-seq_test)/seq_test).mean()
-#            ax.plot(y_pred,label='%s - %s models with err %.2f%%'%(method,len(models),100*err))
-#    ax.legend()
-#    ax.set_title('trend')
-#    
-#    y_trend = y_pred
-
-    from sklearn.ensemble import RandomForestRegressor
-    X, Y = create_dataset(seq_train_cv.flatten(), input_lags, pre_period)     
-    reg = RandomForestRegressor(verbose=True,max_features = 'auto',min_samples_split=2)
-    reg.fit(X,Y)
+    X, Y = create_dataset(seq_train_cv.flatten(), input_lags, pre_period)       
+    
+    # testing lazzy_prediction()
     # 新的样本输入
     x = seq[-window:-window+input_lags]
+#    print 'x1',x
     x = std_sca.transform(np.array(x).reshape(-1,1)).flatten()
-    y_pred = reg.predict(x)
-    y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))    
+#    print 'x2',x
+    
+    # drawing
     fig, ax = plt.subplots()
     ax.plot(seq_test,label='real')
-    ax.plot(y_pred,label='pridition')
+    # 真正预测时充分利用cv的数据，重新训练
+    models = lazzy_loo(x, X, Y, Kmax = 200)  # 对于趋势Kmax可以作为一个参数调节
+#    print 'x3',x
+    methods = ['WIN','M','WM']
+#    methods = ['WM','M','WIN']
+    for method in methods:
+        y_pred = lazzy_prediction(x, X, Y, models=models, method = method)
+        y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))
+        if method == 'WIN':
+            err = (abs(y_pred-seq_test)/seq_test).mean()
+            ax.plot(y_pred,label='%s - %s neighbors with err %.2f%%'%(method,models[0][1],100*err))
+        else:
+            err = (abs(y_pred-seq_test)/seq_test).mean()
+            ax.plot(y_pred,label='%s - %s models with err %.2f%%'%(method,len(models),100*err))
     ax.legend()
-    ax.set_title('DT')
+    ax.set_title('trend')
     
-    err = 100*(abs(y_pred.flatten()-seq_test)/seq_test).mean()
-    print 'trend testing err: %.2f%%'% err
+    y_trend = y_pred
+
     
-    from sklearn.neural_network import MLPRegressor
-    
-    reg = MLPRegressor(activation = 'relu',hidden_layer_sizes = (10,),
-                       max_iter=10000,verbose=False,learning_rate='adaptive',
-                       tol=0.0,warm_start=True,solver='adam')
-    
-    reg.fit(X,Y)
-    y_pred = reg.predict(x)
-    y_pred = std_sca.inverse_transform(y_pred.reshape(-1,1))    
-    fig, ax = plt.subplots()
-    ax.plot(seq_test,label='real')
-    ax.plot(y_pred,label='pridition')
-    ax.legend()
-    ax.set_title('ANN')
     
     err = 100*(abs(y_pred.flatten()-seq_test)/seq_test).mean()
     print 'trend testing err: %.2f%%'% err

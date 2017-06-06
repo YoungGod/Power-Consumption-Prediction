@@ -64,26 +64,49 @@ s_day_type = pd.Series(data = day_type * num_weeks + rest_days, index = s_power_
 
 s = pd.Series(data=s_power_consumption.values,index=s_day_type.values)
 
+#data = []
+#for day in sorted(day_type):
+#    data.append(s.values[np.where(s.index==day)])
+
+#fig, ax = plt.subplots(figsize=(18,12))
+#ax.boxplot(data)
+#ax.set_title('box plot')
+#ax.set_xticks([y+1 for y in range(len(data))])
+#ax.set_xticklabels(['Mon','Tue','Wed','Thu','Fri','Sat','Sun'])
+#
+#fig, ax = plt.subplots(figsize=(18,12))
+#ax.violinplot(data,showmedians=True,showmeans=False)
+#ax.set_title('box plot')
+#ax.set_xticks([y+1 for y in range(len(data))])
+#ax.set_xticklabels(['Mon','Tue','Wed','Thu','Fri','Sat','Sun'])
+#
+#fig, ax = plt.subplots(figsize=(24,6))
+#ax.plot(s_power_consumption.values,'-o')
+#ax.set_title('power consumption')
+#ax.set_xticks([y for y in range(len(s_power_consumption.values))])
+#ax.xaxis.grid(True)
+##ax.set_xticklabels(s_power_consumption.index[-90:],rotation='vertical')
+##ax.set_xticklabels(s_day_type.values,rotation='vertical')
+
+day_type = [3,4,5,6,7,1,2]
 data = []
-for day in sorted(day_type):
+for day in day_type:
     data.append(s.values[np.where(s.index==day)])
+    
+data = np.array(data)
+df = pd.DataFrame(data = data.T,columns=['Wed','Thu','Fri','Sat','Sun','Mon','Tue',])
+s_median = df.median()
 
-fig, ax = plt.subplots(figsize=(18,12))
-ax.boxplot(data)
-ax.set_title('box plot')
-ax.set_xticks([y+1 for y in range(len(data))])
-ax.set_xticklabels(['Mon','Tue','Wed','Thu','Fri','Sat','Sun'])
+median = s_median.values
+power = s_power_consumption.values
+median_expand = np.tile(median,87)
+deseason_power = power - median_expand
 
-fig, ax = plt.subplots(figsize=(18,12))
-ax.violinplot(data,showmedians=True,showmeans=False)
-ax.set_title('box plot')
-ax.set_xticks([y+1 for y in range(len(data))])
-ax.set_xticklabels(['Mon','Tue','Wed','Thu','Fri','Sat','Sun'])
 
-fig, ax = plt.subplots(figsize=(24,6))
-ax.plot(s_power_consumption.values,'-o')
-ax.set_title('power consumption')
-ax.set_xticks([y for y in range(len(s_power_consumption.values))])
-ax.xaxis.grid(True)
-#ax.set_xticklabels(s_power_consumption.index[-90:],rotation='vertical')
-#ax.set_xticklabels(s_day_type.values,rotation='vertical')
+
+
+
+
+
+
+
