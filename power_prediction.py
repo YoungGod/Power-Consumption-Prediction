@@ -18,7 +18,11 @@ from statsmodels.tsa.seasonal import seasonal_decompose
 def load_data():
     df = pd.read_csv('Tianchi_power.csv')
     df['record_date'] = pd.to_datetime(df['record_date'])
-    return df.groupby('record_date')['power_consumption'].sum()
+#    return df.groupby('record_date')['power_consumption'].sum()
+    s_power = df.groupby('record_date')['power_consumption'].sum()
+    selection1 = pd.date_range('2015-02-12',periods=14)
+    selection2 = pd.date_range('2016-02-4',periods=14)
+    return s_power.drop(selection1).drop(selection2)
 
 def load_new_data():
     df = pd.read_csv('Tianchi_power_9.csv')
@@ -27,6 +31,25 @@ def load_new_data():
     power = load_data()
     return pd.concat((power,power9))
 
+def load_weathter():
+    df = pd.read_csv('weather.csv')
+    ave_t = (df.t_max+df.t_min)/2
+#    return smooth(ave_t.values,7)
+    return ave_t.values
+
+def create_weather(seq, input_lags, pre_period):
+    """
+    功能：根据时间序列array，及给定的输入时滞及预测时长，构建训数据集(X
+    """
+    X = []
+    n = len(seq)
+    window = input_lags + pre_period
+    for i in xrange(n - window + 1):
+        # if do like this, you need to pay attention
+        x = seq[i + window-pre_period: window + i]
+        X.append(x)
+    return np.array(X)
+    
 def create_dataset(seq, input_lags, pre_period):
     """
     功能：根据时间序列array，及给定的输入时滞及预测时长，构建训数据集(X,Y)
@@ -191,52 +214,65 @@ def plot_learning_curve(estimator, title, X, y,
     plt.legend(loc="best")
     return plt,train_sizes
 
-if __name__ == "__main__":
-    # load_data()
-    power = load_data()
-    power.plot()
-    
-    # load_new_data()
-    new_power = load_new_data()
-    new_power.plot()
-    
-    # create_dataset()
-    seq = new_power.values
-    input_lags = 30
-    pre_period = 30
-    X, Y = create_dataset(seq, input_lags, pre_period)
-    fig, ax = plt.subplots()
-    ax.plot(Y[-1])
-    ax.plot(X[-1])
-    
-    y = np.array([1,2,3])
-#    write_result(y,path='Tianchi_power_predict_table_test.csv')
-    
+def smooth(y, box_pts):
+    """
+    简单的平滑滤波
+    ref:
+    https://stackoverflow.com/questions/20618804/how-to-smooth-a-curve-in-the-right-way
+    """
+    box = np.ones(box_pts)/box_pts
+    y_smooth = np.convolve(y, box, mode='same')
+    return y_smooth
 
-    # plot_learning _curve()
-    from sklearn.naive_bayes import GaussianNB
-    from sklearn.svm import SVC
-    from sklearn.datasets import load_digits
-    from sklearn.model_selection import ShuffleSplit
-    digits = load_digits()
-    X, y = digits.data, digits.target
+
+if __name__ == "__main__":
+#    # load_data()
+#    power = load_data()
+#    power.plot()
+#    
+#    # load_new_data()
+#    new_power = load_new_data()
+#    new_power.plot()
+#    
+#    # create_dataset()
+#    seq = new_power.values
+#    input_lags = 30
+#    pre_period = 30
+#    X, Y = create_dataset(seq, input_lags, pre_period)
+#    fig, ax = plt.subplots()
+#    ax.plot(Y[-1])
+#    ax.plot(X[-1])
+#    
+#    y = np.array([1,2,3])
+##    write_result(y,path='Tianchi_power_predict_table_test.csv')
+#    
+#
+#    # plot_learning _curve()
+#    from sklearn.naive_bayes import GaussianNB
+#    from sklearn.svm import SVC
+#    from sklearn.datasets import load_digits
+#    from sklearn.model_selection import ShuffleSplit
+#    digits = load_digits()
+#    X, y = digits.data, digits.target
+#    
+#    title = "Learning Curves (Naive Bayes)"
+#    cv = ShuffleSplit(n_splits=100, test_size=0.2, random_state=0)
+#    estimator = GaussianNB()
+#    plot_learning_curve(estimator, title, X, y, ylim=(0.7,1.01),
+#                        cv=cv, scoring='accuracy')
+#    plt,train_sizes = plot_learning_curve(estimator=reg, title='MLP',
+#                    X=X, y=Y, cv=30)
+    plot_learning_curve(estimator=reg, title='MLP',
+                    X=X, y=Y, cv=30,scoring='neg_mean_squared_error')
     
-    title = "Learning Curves (Naive Bayes)"
-    cv = ShuffleSplit(n_splits=100, test_size=0.2, random_state=0)
-    estimator = GaussianNB()
-    plot_learning_curve(estimator, title, X, y, ylim=(0.7,1.01),
-                        cv=cv, scoring='accuracy')
-    plt,train_sizes = plot_learning_curve(estimator=reg, title='MLP',
-                    X=X, y=Y, cv=30)
-    
-    title = "Learing Curves (SVM, RBF kernel, $\gamma=0.001$)"
-    cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
-    estimator = SVC(gamma=0.001)
+#    title = "Learing Curves (SVM, RBF kernel, $\gamma=0.001$)"
+#    cv = ShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
+#    estimator = SVC(gamma=0.001)
 #    plot_learning_curve(estimator, title, X, y, (0.7, 1.01), cv=cv)
-    
-    # plot_partial_corr()
-    plot_partial_corr(np.array(range(100)),lags=range(1,50))
-    plot_auto_corr(np.array(range(100)),lags=range(1,50))
+#    
+#    # plot_partial_corr()
+#    plot_partial_corr(np.array(range(100)),lags=range(1,50))
+#    plot_auto_corr(np.array(range(100)),lags=range(1,50))
 
 
 
